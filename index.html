@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Messaging App</title>
+    <style>
+        body { font-family: sans-serif; margin: 0; padding: 20px; background-color: #f4f4f4; }
+        #messages {
+            list-style-type: none;
+            margin: 0;
+            padding: 0;
+            background-color: white;
+            border: 1px solid #ddd;
+            height: 300px;
+            overflow-y: scroll;
+            margin-bottom: 10px;
+            padding: 10px;
+        }
+        #messages li {
+            padding: 8px 10px;
+            margin-bottom: 5px;
+            background-color: #e6f7ff;
+            border-radius: 5px;
+            word-wrap: break-word; /* To prevent long words breaking layout */
+        }
+        #messages li:nth-child(odd) {
+            background-color: #f0f8ff;
+        }
+        #form {
+            display: flex;
+        }
+        #input {
+            flex-grow: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px 0 0 5px;
+            font-size: 16px;
+        }
+        #form button {
+            padding: 10px 15px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 0 5px 5px 0;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        #form button:hover {
+            background-color: #0056b3;
+        }
+        #typing-indicator {
+            font-size: 0.8em;
+            color: #888;
+            height: 1em; /* Reserve space */
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Simple Chat</h1>
+    <div id="typing-indicator"></div>
+    <ul id="messages"></ul>
+    <form id="form">
+        <input id="input" autocomplete="off" placeholder="Type a message..." /><button>Send</button>
+    </form>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        // 1. Connect to the Socket.IO server
+        // By default, it tries to connect to the host that served the HTML.
+        // If your server is on a different port (e.g., 3000), specify it:
+        // const socket = io('http://localhost:3000');
+        const socket = io(); // Connects to the server that served this HTML (localhost:3000 in this case)
+
+        const form = document.getElementById('form');
+        const input = document.getElementById('input');
+        const messages = document.getElementById('messages');
+        const typingIndicator = document.getElementById('typing-indicator');
+
+        let typingTimeout;
+        let isTyping = false;
+
+        // 2. Handle form submission (sending message)
+        form.addEventListener('submit', (e) => {
+            e.preventDefault(); // Prevent default form submission (page reload)
+            if (input.value) {
+                // Emit a 'chat message' event to the server
+                socket.emit('chat message', input.value);
+                input.value = ''; // Clear the input field
+                stopTyping(); // Reset typing indicator after sending
+            }
+        });
+
+        // 3. Listen for incoming 'chat message' events from the server
+        socket.on('chat message', (msg) => {
+            const item = document.createElement('li');
+            item.textContent = msg;
+            messages.appendChild(item);
+            // Scroll to the latest message
+            messages.scrollTop = messages.scrollHeight;
+        });
+
+        // 4. Handle typing indicator
+        input.addEventListener('input', () => {
+            if (!isTyping) {
+                isTyping = true;
+                socket.emit('typing', true);
+            }
+            clearTimeout(typingTimeout);
+            typingTimeout = setTimeout(() => {
+                stopTyping();
+            }, 1000); // Stop typing after 1 second of no input
+        });
+
+        function stopTyping() {
+            if (isTyping) {
+                isTyping = false;
+                socket.emit('typing', false);
+            }
+        }
+
+        socket.on('typing', (data) => {
+            if (data.isTyping && data.userId !== socket.id) { // Only show if someone else is typing
+                typingIndicator.textContent = `${data.userId.substring(0, 4)}... is typing...`;
+            } else {
+                typingIndicator.textContent = '';
+            }
+        });
+
+        // Optional: Connection status indicators
+        socket.on('connect', () => {
+            console.log('Connected to server!');
+        });
+        socket.on('disconnect', () => {
+            console.log('Disconnected from server!');
+        });
+        socket.on('connect_error', (err) => {
+            console.log(`Connection Error: ${err.message}`);
+        });
+
+    </script>
+</body>
+</html>
